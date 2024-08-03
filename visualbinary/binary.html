@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <style>
+.clickable_bit
+{
+    color: #ee99dd;
+
+    cursor: pointer;
+
+    transition: background-color 0.2s, font-size 0.2s;
+    transition-timing-function: ease-out;
+
+    background-color: #ffddff;
+}
+
+.clickable_bit, .off_value
+{
+    color: #999bee;
+}
+
+.clickable_bit:hover
+{
+    font-size: 40px;
+    background-color: #ffeeff;
+}
+
+.slider
+{
+    -webkit-appearance: none;
+    appearance: none;
+
+    height: 10px;
+    border-radius: 5px;
+
+    background: #ffccff;
+
+    outline: none;
+
+    opacity: 0.7;
+
+    transition: opacity .2s;
+}
+
+.slider:hover
+{
+    opacity: 1;
+}
+
+.slider::-webkit-slider-thumb
+{
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #ee99dd;
+
+    cursor: pointer;
+}
+
+.slider::-moz-range-thumb
+{
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #ee99dd;
+
+    cursor: pointer;
+}
+
+button
+{
+    background-color: #ffccff;
+    border: none;
+    border-radius: 5px;
+
+    color: white;
+
+    text-align: center;
+    font-size: 30px;
+
+    transition: transform 0.2s;
+    transition-timing-function: ease-out;
+
+    cursor: pointer;
+}
+
+button:hover
+{
+    transform: scale(1.05, 1.05);
+}
+
+.off_value
+{
+    color: #dd88cc;
+}
+
+.operation_symbol
+{
+    color: #66aaff;
+
+    font-size: 50px;
+}
+
+#addition_symbol
+{
+    margin-top: -10px;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+#equals_symbol
+{
+    margin-bottom: -30px;
+    margin-left: -30px;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+#bits_div
+{
+    width: 100%;
+
+    display: flex;
+}
+
+#cell
+{
+    margin: 10px;
+
+    color: #8890dd;
+
+    text-align: center;
+    vertical-align: middle;
+
+    font-size: 30px;
+}
+
+#carry
+{
+    width: 50px;
+    height: 15px;
+    margin-top: 5px;
+    margin-bottom: 15px;
+    margin-left: -50px;
+
+    color: #66aaff;
+
+    font-size: 22px;
+}
+
+#top
+{
+    width: 50px;
+    height: 50px;
+
+    border: 4px solid #ee99dd;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+#bottom
+{
+    width: 50px;
+    height: 50px;
+    margin-top: 4px;
+
+    border: 4px solid #ee99dd;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+#sum
+{
+    width: 50px;
+    height: 50px;
+    margin-top: 15px;
+
+    border: 4px solid #ee99dd;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+
+    background-color: #ffccff;
+}
+
+.nonclickable_bit
+{
+    background-color: #ffccff;
+}
+        </style>
+        <script>
+class bits_controller
+{
+    constructor(amount_element_id)
+    {
+        this.amount_element_id = amount_element_id;
+
+        this.bits = [];
+    }
+
+    create_generate_amount()
+    {
+        return document.getElementById(this.amount_element_id).value;
+    }
+
+    invert_bit(index)
+    {
+        this.bits[index] = this.bits[index]==0 ? 1 : 0;
+    }
+
+    static create_bit()
+    {
+        return Math.round(Math.random());
+    }
+
+    generate_bits()
+    {
+        const amount = this.create_generate_amount();
+
+        this.bits = [];
+        for(let i = 0; i < amount; ++i)
+        {
+            this.bits[i] = bits_controller.create_bit();
+        }
+    }
+}
+
+class operation_controller
+{
+    constructor(amount_element_id)
+    {
+        this.top = new bits_controller(amount_element_id);
+        this.bottom = new bits_controller(amount_element_id);
+
+        this.carry_bits = [];
+        this.sum_bits = [];
+    }
+
+    max_amount()
+    {
+        return this.top.bits.length+1;
+    }
+
+    generate_bits()
+    {
+        this.top.generate_bits();
+        this.bottom.generate_bits();
+    }
+
+    top_bit(index)
+    {
+        const length = this.top.bits.length;
+        return index==length ? 0 : this.top.bits[index];
+    }
+
+    bottom_bit(index)
+    {
+        const length = this.bottom.bits.length;
+        return index==length ? 0 : this.bottom.bits[index];
+    }
+
+    sum()
+    {
+        this.carry_bits = [];
+        this.sum_bits = [];
+
+        const length = this.max_amount();
+
+        for(let i = 0; i < length; ++i)
+        {
+            const carry_bit = i!=0 ? this.carry_bits[i-1] : 0;
+            const top_bit = this.top_bit(i);
+            const bottom_bit = this.bottom_bit(i);
+
+            this.carry_bits[i] = (top_bit & bottom_bit) | (top_bit & carry_bit) | (carry_bit & bottom_bit);
+            this.sum_bits[i] = top_bit ^ bottom_bit ^ carry_bit;
+        }
+    }
+}
+
+class bit_display
+{
+    constructor(parent_id, index, top, bottom, sum, carry, last = false)
+    {
+        this.parent_id = parent_id;
+
+        this.index = index;
+
+        this.top = top;
+        this.bottom = bottom;
+        this.sum = sum;
+        this.carry = carry;
+
+        this.last = last;
+
+        this.create_element();
+    }
+
+    static carry_node(value)
+    {
+        const out_node = document.createElement("div");
+        out_node.setAttribute("id", "carry");
+        if(value==0)
+        {
+            out_node.setAttribute("class", "off_value");
+        }
+
+        const carry_text = document.createTextNode(String(value));
+        out_node.appendChild(carry_text);
+
+        const carry_icon = document.createElement("i");
+        carry_icon.appendChild(document.createTextNode("↶"));
+
+        out_node.appendChild(carry_icon);
+
+        return out_node;
+    }
+
+    static top_node(value, index, last)
+    {
+        const out_node = document.createElement("div");
+        out_node.setAttribute("id", "top");
+
+        var value_type = "";
+        if(value==0)
+        {
+            value_type = "off_value";
+        }
+
+        if(!last)
+        {
+            out_node.setAttribute("class", "clickable_bit" + " " + value_type);
+            out_node.setAttribute("onclick", "flip_bit(true, "+index+")");
+        } else
+        {
+            out_node.setAttribute("class", "nonclickable_bit" + " " + value_type);
+        }
+
+        const top_text = document.createTextNode(String(value));
+        out_node.appendChild(top_text);
+
+        return out_node;
+    }
+
+    static bottom_node(value, index, last)
+    {
+        const out_node = document.createElement("div");
+        out_node.setAttribute("id", "bottom");
+
+        var value_type = "";
+        if(value==0)
+        {
+            value_type = "off_value";
+        }
+
+        if(!last)
+        {
+            out_node.setAttribute("class", "clickable_bit" + " " + value_type);
+            out_node.setAttribute("onclick", "flip_bit(false, "+index+")");
+        } else
+        {
+            out_node.setAttribute("class", "nonclickable_bit" + " " + value_type);
+        }
+
+        const bottom_text = document.createTextNode(String(value));
+        out_node.appendChild(bottom_text);
+
+        return out_node;
+    }
+
+    static sum_node(value)
+    {
+        const out_node = document.createElement("div");
+        out_node.setAttribute("id", "sum");
+        if(value==0)
+        {
+            out_node.setAttribute("class", "off_value");
+        }
+
+        const sum_text = document.createTextNode(String(value));
+        out_node.appendChild(sum_text);
+
+        return out_node;
+    }
+
+    create_element()
+    {
+        const parent_div = document.getElementById(this.parent_id);
+
+        const display_node = document.createElement("div");
+        display_node.setAttribute("id", "cell");
+        let carry_node = bit_display.carry_node(this.carry);
+        carry_node.style.visibility = this.last ? "hidden" : "visible";
+        display_node.appendChild(carry_node);
+        display_node.appendChild(bit_display.top_node(this.top, this.index, this.last));
+        display_node.appendChild(bit_display.bottom_node(this.bottom, this.index, this.last));
+        display_node.appendChild(bit_display.sum_node(this.sum));
+
+        parent_div.appendChild(display_node);
+    }
+}
+
+class bits_display
+{
+    constructor(parent_id, op_control)
+    {
+        this.op_control = op_control;
+        this.bit_displays = [];
+
+        this.parent_id = parent_id;
+    }
+
+    clear_div()
+    {
+        document.getElementById(this.parent_id).innerHTML = "";
+    }
+
+    recreate()
+    {
+        this.op_control.generate_bits();
+        this.generate();
+    }
+
+    generate()
+    {
+        this.clear_div();
+
+        this.op_control.sum();
+
+        this.bit_displays = [];
+
+        const sum = this.op_control.sum_bits;
+        const carry = this.op_control.carry_bits;
+
+        const length = this.op_control.max_amount();
+        for(let i = length-1; i >= 0; --i)
+        {
+            this.bit_displays[i] = new bit_display(this.parent_id, i, this.op_control.top_bit(i), this.op_control.bottom_bit(i), sum[i], carry[i], i==length-1);
+        }
+
+        const addition_symbol_node = document.createElement("p");
+        addition_symbol_node.setAttribute("id", "addition_symbol");
+        addition_symbol_node.setAttribute("class", "operation_symbol");
+        addition_symbol_node.appendChild(document.createTextNode("+"));
+
+        const equals_symbol_node = document.createElement("p");
+        equals_symbol_node.setAttribute("id", "equals_symbol");
+        equals_symbol_node.setAttribute("class", "operation_symbol");
+        equals_symbol_node.appendChild(document.createTextNode("="));
+
+        document.getElementById(this.parent_id).appendChild(addition_symbol_node);
+        document.getElementById(this.parent_id).appendChild(equals_symbol_node);
+    }
+}
+
+let ops_control = new operation_controller("bits_amount_slider");
+let g_display = new bits_display("bits_div", ops_control);
+
+function flip_bit(top, index)
+{
+    if(top)
+    {
+        ops_control.top.invert_bit(index);
+    } else
+    {
+        ops_control.bottom.invert_bit(index);
+    }
+
+    g_display.generate();
+}
+        </script>
+    </head>
+    <body>
+        <input type="range" onchange="g_display.recreate()" min="1" max="10" value="4" class="slider" id="bits_amount_slider">
+        <button type="button" onclick="g_display.recreate()">randomize</button>
+        <div id="bits_div">
+        </div>
+        <script>
+g_display.recreate();
+        </script>
+    </body>
+</html>
