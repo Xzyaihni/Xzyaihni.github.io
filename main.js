@@ -15,25 +15,22 @@ function color_offset(color, offset)
     return color + " " + (offset * 100).toFixed(0) + "%";
 }
 
-function lower_panels(current, direction)
+function lower_panels(current, lower)
 {
     Array.from(document.getElementsByClassName("panel")).filter((x) =>
     {
 	return x.id !== current;
     }).forEach((x) =>
     {
-	x.animate(
-	    [
-		{transform: "translateY(0)", filter: "brightness(100%)"},
-		{transform: "translateY(1em)", filter: "brightness(60%)"}
-	    ],
-	    {
-		direction,
-		duration: 100,
-		easing: "ease-out",
-		fill: "both"
-	    }
-	);
+	if (lower)
+	{
+	    x.style.transform = "translateY(1em)";
+	    x.style.filter = "brightness(60%)";
+	} else
+	{
+	    x.style.transform = "translateY(0)";
+	    x.style.filter = "brightness(100%)";
+	}
     });
 }
 
@@ -45,8 +42,8 @@ function add_site(url, name)
     const thisId = "panel" + panelId;
     panel.id = thisId;
 
-    panel.addEventListener("mouseenter", (e) => { lower_panels(thisId, "normal"); });
-    panel.addEventListener("mouseleave", (e) => { lower_panels(thisId, "reverse"); });
+    panel.addEventListener("mouseenter", (e) => { lower_panels(thisId, true); });
+    panel.addEventListener("mouseleave", (e) => { lower_panels(thisId, false); });
 
     const colorA = "hsl(322, 78%, 65%)";
     const colorB = "hsl(43, 100%, 70%)";
