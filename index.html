@@ -2,34 +2,93 @@
 <html>
   <head>
     <meta charset="utf-8">
+    <script src="main.js" defer></script>
     <title>my cool stuff</title>
     <style>
+      :root
+      {
+	--background-color: hsl(229, 21%, 10%);
+	--text-color: hsl(0, 100%, 100%);
+	--button-color: hsl(0, 100%, 100%);
+	--button-dark-color: hsl(0, 0%, 80%);
+      }
+
       html
       {
-        background: #440a2e;
+        background: var(--background-color);
       }
 
-      a
+      a,h1
       {
-        color: hsl(120, 80%, 50%);
+        color: var(--text-color);
       }
 
-      p
+      h1
       {
-        color: hsl(0, 100%, 70%);
+	font-size: 3em;
+      }
+
+      body,html,#container
+      {
+	margin: 0;
+	height: 100%;
+      }
+
+      #container
+      {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+      }
+
+      #panelsContainer
+      {
+	display: flex;
+	flex-direction: row;
+	justify-content: center;
+      }
+
+      button
+      {
+	border: none;
+	color: var(--background-color);
+	background-color: var(--button-color);
+	padding: 0.5em 1em;
+	font-size: 1.2em;
+	width: 9em;
+	flex: 1;
+	transition: background-color 0.2s ease-in-out;
+      }
+
+      button:hover
+      {
+	animation-name: buttonHover;
+	animation-duration: 0.2s;
+	animation-fill-mode: both;
+	background-color: var(--button-dark-color);
+      }
+
+      .panel
+      {
+	display: flex;
+	flex-direction: column;
+	margin: 0 0.5em;
+	height: 15em;
+      }
+
+      .panelImage
+      {
+	flex: 4;
       }
     </style>
   </head>
   <body>
-    <p style="color: hsl(60, 80%, 50%);">✨where do u want to go?✨</p>
-    <div>
-      <a href="/badtracer/index.html" style="color: hsl(0, 80%, 50%);">!!!COOL WARNING!!! raytracer! !!!COOL WARNING!!!</a>
-    </div>
-    <div>
-      <a href="/cottoncandysite/index.html">cotton candy skies..</a>
-    </div>
-    <div>
-      <a href="/visualbinary/binary.html">visual binary ooh!</a>
+    <div id="container">
+      <div id="title">
+	<h1>where do u want to go?</h1>
+      </div>
+      <div id="panelsContainer"></div>
     </div>
   </body>
 </html>
