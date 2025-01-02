@@ -58,15 +58,6 @@
 	font-size: 1.2em;
 	width: 9em;
 	flex: 1;
-	transition: background-color 0.2s ease-in-out;
-      }
-
-      button:hover
-      {
-	animation-name: buttonHover;
-	animation-duration: 0.2s;
-	animation-fill-mode: both;
-	background-color: var(--button-dark-color);
       }
 
       .panel
@@ -76,6 +67,11 @@
 	margin: 0 0.5em;
 	height: 15em;
 	transition: transform 0.1s ease-out, filter 0.1s ease-out;
+      }
+
+      .panel:hover
+      {
+	filter: brightness(110%) !important;
       }
 
       .panelImage

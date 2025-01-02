@@ -45,6 +45,8 @@ function add_site(url, name)
     panel.addEventListener("mouseenter", (e) => { lower_panels(thisId, true); });
     panel.addEventListener("mouseleave", (e) => { lower_panels(thisId, false); });
 
+    panel.addEventListener("click", (e) => { window.location.href = new URL(url, window.location.href).href; });
+
     const colorA = "hsl(322, 78%, 65%)";
     const colorB = "hsl(43, 100%, 70%)";
 
@@ -81,7 +83,6 @@ function add_site(url, name)
 
     const button = document.createElement("button");
     button.innerHTML = name;
-    button.addEventListener("click", (e) => { window.location.href = new URL(url, window.location.href).href; });
 
     panel.appendChild(button);
 
