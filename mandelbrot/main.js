@@ -26,8 +26,8 @@ float mandelbrot(vec2 pixel)
     float z_real = 0.0;
     float z_imag = 0.0;
 
-    const int ITERATIONS = 500;
-    for(int i = 0; i < ITERATIONS; ++i)
+    const int ITERATIONS = 250;
+    for(int i = 0; i <= ITERATIONS; ++i)
     {
         float new_z_real = z_real * z_real - z_imag * z_imag;
         z_imag = z_real * z_imag * 2.0;
@@ -46,13 +46,48 @@ float mandelbrot(vec2 pixel)
     return 1.0;
 }
 
+float lab_f(float t)
+{
+    float delta = 6.0 / 29.0;
+    if (t > delta)
+    {
+        return t * t * t;
+    } else
+    {
+        return 3.0 * delta * delta * (t - 4.0 / 29.0);
+    }
+}
+
 void main()
 {
     vec2 pixel = gl_FragCoord.xy / vec2(CANVAS_DIMENSIONS);
 
     float depth = mandelbrot(pixel);
 
-    frag_color = vec4(vec3(depth, 0.0, depth * depth * 0.5), 1.0);
+    vec3 lch = vec3(min(100.0, pow(depth, 2.0) * 5000.0), 100.0, log(depth) * 10.0);
+
+    if (depth == 1.0)
+    {
+        lch.x = 40.0;
+        lch.z = pow(abs(cos((pixel.x - 0.5) * zoom + pos.x)) * 3.0 + abs(sin((pixel.y - 0.5) * zoom + pos.y)) * 0.5, 3.0);
+    }
+
+    vec3 lab = vec3(lch.x, lch.y * cos(lch.z), lch.y * sin(lch.z));
+
+    float l16 = lab.x + 16.0;
+    vec3 xyz = vec3(
+        95.0489 * lab_f(l16 / 116.0 + lab.y / 500.0),
+        100.0 * lab_f(l16 / 116.0),
+        108.8840 * lab_f(l16 / 116.0 - lab.z / 200.0)
+    );
+
+    vec3 color = abs(mat3(
+        vec3(3.2404542, -0.9692660, 0.0556434),
+        vec3(-1.5371385, 1.8760108, -0.2040259),
+        vec3(-0.4985314, 0.0415560, 1.0572252)
+    ) * xyz / 255.0);
+
+    frag_color = vec4(color, 1.0);
 }`;
 const canvas = document.getElementById("display_canvas");
 const gl = canvas.getContext("webgl2");
