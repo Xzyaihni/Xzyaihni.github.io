@@ -5,6 +5,7 @@ const containerElement = document.getElementById("panelsContainer");
 const sites = [
     ["badtracer/index.html", "raytracer"],
     ["cottoncandysite/index.html", "cotton candy"],
+    ["mandelbrot/index.html", "mandelbrot viewer lol"],
     ["visualbinary/binary.html", "binary adder"]
 ];
 
