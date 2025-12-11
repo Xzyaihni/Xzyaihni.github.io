@@ -11,17 +11,20 @@ let animation_counter = 0;
 const animation_limit = 100;
 let frame_number = 0;
 
+const tile_size = 16;
+
 const pixel_scale = 4;
 const position_scale = 16 * pixel_scale;
 
 const levels = {
-    snow: []
 };
 
 let current_level = "snow";
 
 let textures = {
 };
+
+let tiles_textures = [];
 
 let entities = [];
 
@@ -47,6 +50,37 @@ load_textures({
     player_walk_right: ["player_walk_right0.png", "player_walk_right1.png"]
 });
 
+load_current_level();
+
+function get_resource(name, type, on_get)
+{
+    let xhr = new XMLHttpRequest();
+    xhr.responseType = type;
+
+    xhr.onreadystatechange = () => {
+        if (xhr.readyState !== 4)
+        {
+            return;
+        }
+
+        if (xhr.status !== 200)
+        {
+            return;
+        }
+
+        if (type === "text")
+        {
+            on_get(xhr.responseText)
+        } else
+        {
+            on_get(xhr.response)
+        }
+    };
+
+    xhr.open("GET", name);
+    xhr.send();
+}
+
 function on_texture_loaded(texture, name)
 {
     if (textures[name] === undefined)
@@ -61,32 +95,21 @@ function on_texture_loaded(texture, name)
 
     if (waiting_textures === 0)
     {
-        initialize_scene();
+        try_initialize_scene();
     }
+}
+
+function load_texture_image_with(name, on_load)
+{
+    get_resource(name, "blob", (blob) => {
+        window.createImageBitmap(blob)
+            .then(on_load, (err) => console.log("failed to load texture", name, err));
+    });
 }
 
 function load_texture_image(name, field)
 {
-    let xhr = new XMLHttpRequest();
-    xhr.responseType = "blob";
-
-    xhr.onreadystatechange = () => {
-        if (xhr.readyState !== 4)
-        {
-            return;
-        }
-
-        if (xhr.status !== 200)
-        {
-            return;
-        }
-
-        window.createImageBitmap(xhr.response)
-            .then((x) => on_texture_loaded(x, field), (err) => console.log("failed to load texture", name, err));
-    };
-
-    xhr.open("GET", name);
-    xhr.send();
+    load_texture_image_with(name, (image) => on_texture_loaded(image, field))
 }
 
 function load_texture(state, assets, name)
@@ -117,6 +140,53 @@ function load_textures(textures)
     waiting_textures = state.count;
 
     state.loader();
+}
+
+function parse_level(text)
+{
+    const lines = text.split('\n');
+
+    const size_text = lines[0];
+    const size = size_text.split('x').map(Number);
+
+    waiting_textures += lines.length - 2;
+
+    const start_index = tiles_textures.length;
+
+    const textures = lines.slice(1, lines.length - 1).map((name, index) => {
+        const this_index = start_index + index;
+
+        load_texture_image_with(name, (texture) => {
+            tiles_textures[this_index] = texture;
+
+            waiting_textures -= 1;
+            if (waiting_textures === 0)
+            {
+                try_initialize_scene();
+            }
+        });
+
+        return this_index;
+    });
+
+    const tiles = lines[lines.length - 1].split(' ').map((x) => start_index + Number(x));
+
+    return {
+        size,
+        tiles
+    };
+}
+
+function load_current_level()
+{
+    if (levels[current_level] !== undefined)
+    {
+        return;
+    }
+
+    get_resource(current_level + ".save", "text", (text) => {
+        levels[current_level] = parse_level(text);
+    });
 }
 
 function array_add(a, b)
@@ -237,20 +307,60 @@ function handle_inputs(dt)
     handle_movement_inputs(dt);
 }
 
+function draw_tiles(camera_position)
+{
+    const level = levels[current_level];
+
+    const width = level.size[0];
+
+    const tiles = level.tiles;
+
+    tiles.forEach((tile, index) => {
+        const x = index % width;
+        const y = Math.floor(index / width);
+
+        const texture = tiles_textures[tile];
+
+        ctx.drawImage(
+            texture,
+            (x - camera_position[0]) * position_scale - 0.5,
+            (-y - camera_position[1]) * position_scale - 0.5,
+            tile_size * pixel_scale + 1,
+            tile_size * pixel_scale + 1
+        );
+    });
+}
+
+function entity_position(size, position)
+{
+    const p = position.map((x) => x * position_scale);
+
+    return [
+        p[0] + canvas.width * 0.5 - size.width * pixel_scale * 0.5,
+        p[1] + canvas.height * 0.5 - size.height * pixel_scale * 0.5
+    ];
+}
+
 function draw_frame()
 {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     const camera_position = entities[camera].position;
 
+    draw_tiles(camera_position);
+
     entities.forEach((entity) => {
         if (field_exists(entity.texture) && field_exists(entity.position))
         {
+            const screen_position = array_sub(entity.position, camera_position);
+
             const texture = entity.texture[frame_number % entity.texture.length];
+            const position = entity_position(texture, screen_position);
+
             ctx.drawImage(
                 texture,
-                (entity.position[0] - camera_position[0]) * position_scale + canvas.width * 0.5 - texture.width * pixel_scale * 0.5,
-                (entity.position[1] - camera_position[1]) * position_scale + canvas.height * 0.5 - texture.height * pixel_scale * 0.5,
+                position[0],
+                position[1],
                 texture.width * pixel_scale,
                 texture.height * pixel_scale
             );
@@ -261,8 +371,27 @@ function draw_frame()
 function update_entities(dt)
 {
     {
-        const distance = array_sub(entities[player].position, entities[camera].position).map((x) => x * 0.1);
-        entities[camera].position = array_add(entities[camera].position, distance);
+        const level_size = levels[current_level].size;
+
+        const camera_entity = entities[camera];
+
+        const distance = array_sub(entities[player].position, camera_entity.position).map((x) => x * 0.1);
+        camera_entity.position = array_add(camera_entity.position, distance);
+
+        const limit_camera = (size, x, vertical) => {
+            if (vertical)
+            {
+                return Math.min(Math.max(x, -size + 1), 1 - canvas.height / position_scale);
+            } else
+            {
+                return Math.min(Math.max(x, 0.0), size - canvas.width / position_scale);
+            }
+        };
+
+        camera_entity.position = [
+            limit_camera(level_size[0], camera_entity.position[0], false),
+            limit_camera(level_size[1], camera_entity.position[1], true)
+        ];
     }
 
     entities.forEach((entity) => {
@@ -310,26 +439,64 @@ function update_frame(current_time)
     requestAnimationFrame(update_frame);
 }
 
-function initialize_scene()
+function try_initialize_scene()
 {
+    if (levels[current_level] === undefined)
+    {
+        return;
+    }
+
+    initialize_scene();
+}
+
+function middle_position()
+{
+    const size = levels[current_level].size;
+
+    const bottom_left = [canvas.width, canvas.height].map((x) => x * -0.5 / position_scale);
+
+    const half_scale = size.map((x) => x * 0.5);
+
+    return array_add(bottom_left, [half_scale[0], -half_scale[1]]);
+}
+
+function initialize_current_level()
+{
+    if (current_level === "snow")
+    {
+        const position = array_add(middle_position(), [10.0, 8.0]);
+
+        add_entity({
+            position: position,
+            texture: textures.star,
+            ai: {
+                name: "star",
+                angle: 0.0,
+                target: position
+            }
+        });
+    }
+}
+
+function initialize_level()
+{
+    entities = [];
+
     camera = add_entity({
-        position: [0.0, 0.0]
+        position: middle_position()
     });
 
     player = add_entity({
-        position: [0.0, 0.0],
+        position: middle_position(),
         texture: textures.player_stand
     });
 
-    add_entity({
-        position: [0.5, 0.0],
-        texture: textures.star,
-        ai: {
-            name: "star",
-            angle: 0.0,
-            target: [1.0, 0.0]
-        }
-    });
+    initialize_current_level();
+}
+
+function initialize_scene()
+{
+    initialize_level();
 
     draw_frame();
 
