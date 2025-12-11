@@ -6,7 +6,8 @@ const sites = [
     ["badtracer/index.html", "raytracer"],
     ["cottoncandysite/index.html", "cotton candy"],
     ["mandelbrot/index.html", "mandelbrot viewer lol"],
-    ["visualbinary/binary.html", "binary adder"]
+    ["visualbinary/binary.html", "binary adder"],
+    ["weh/index.html", "im so tired"]
 ];
 
 sites.forEach((x) => { add_site(x[0], x[1]); });
