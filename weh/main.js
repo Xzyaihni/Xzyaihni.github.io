@@ -11,7 +11,7 @@ let animation_counter = 0;
 const animation_limit = 100;
 let frame_number = 0;
 
-const player_speed = 0.05;
+let player_speed = 0.05;
 
 const tile_size = 16;
 
@@ -383,13 +383,21 @@ function draw_frame()
     });
 }
 
-function level_edges()
+function level_edges(size)
 {
     const level_size = levels[current_level].size;
 
+    const is_entity = size !== null;
+
+    const x_bottom_offset = is_entity ? -canvas.width * 0.5 / position_scale + size.width * 0.5 / tile_size : 0.0;
+    const y_bottom_offset = is_entity ? -canvas.height * 0.5 / position_scale + size.height * 0.5 / tile_size : 0.0;
+
+    const x_top_offset = is_entity ? -canvas.width * 0.5 / position_scale - size.width * 0.5 / tile_size : -canvas.width / position_scale;
+    const y_top_offset = is_entity ? -canvas.height * 0.5 / position_scale - size.height * 0.5 / tile_size : -canvas.height / position_scale;
+
     return [
-        [0.0, level_size[0] - canvas.width / position_scale],
-        [-level_size[1] + 1, 1 - canvas.height / position_scale]
+        [0.0 + x_bottom_offset, level_size[0] + x_top_offset],
+        [-level_size[1] + 1 + y_bottom_offset, 1 + y_top_offset]
     ];
 }
 
@@ -401,7 +409,7 @@ function update_entities(dt)
         const distance = array_sub(entities[player].position, camera_entity.position).map((x) => x * 0.1);
         camera_entity.position = array_add(camera_entity.position, distance);
 
-        const edges = level_edges();
+        const edges = level_edges(null);
 
         const limit_camera = (edges, x) => {
             return Math.min(Math.max(x, edges[0]), edges[1]);
@@ -410,6 +418,19 @@ function update_entities(dt)
         camera_entity.position = [
             limit_camera(edges[0], camera_entity.position[0]),
             limit_camera(edges[1], camera_entity.position[1])
+        ];
+    }
+
+    {
+        const edges = level_edges(entities[player].texture[0]);
+
+        const limit_player  = (edges, x) => {
+            return Math.min(Math.max(x, edges[0]), edges[1]);
+        };
+
+        entities[player].position = [
+            limit_player(edges[0], entities[player].position[0]),
+            limit_player(edges[1], entities[player].position[1])
         ];
     }
 
