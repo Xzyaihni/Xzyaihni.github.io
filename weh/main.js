@@ -21,6 +21,7 @@ const position_scale = 16 * pixel_scale;
 const levels = {
 };
 
+let level_initialized = false;
 let current_level = "snow";
 
 let textures = {
@@ -44,6 +45,7 @@ document.addEventListener("keydown", on_key_down);
 document.addEventListener("keyup", on_key_up);
 
 load_textures({
+    snowflake: ["snowflake.png"],
     star: ["star.png"],
     player_stand: ["player_stand.png"],
     player_walk_up: ["player_walk_up0.png", "player_walk_up1.png"],
@@ -53,6 +55,11 @@ load_textures({
 });
 
 load_current_level();
+
+function smoothstep(x)
+{
+    return x * x * (3.0 - 2.0 * x);
+}
 
 function get_resource(name, type, on_get)
 {
@@ -234,19 +241,19 @@ function get_key_changer(e)
     switch (e.code)
     {
         case "KeyW":
-          return (x) => { keys_pressed.up = x };
+            return (x) => { keys_pressed.up = x };
 
         case "KeyS":
-          return (x) => { keys_pressed.down = x };
+            return (x) => { keys_pressed.down = x };
 
         case "KeyA":
-          return (x) => { keys_pressed.left = x };
+            return (x) => { keys_pressed.left = x };
 
         case "KeyD":
-          return (x) => { keys_pressed.right = x };
+            return (x) => { keys_pressed.right = x };
 
         default:
-          return (_) => {};
+            return (_) => {};
     }
 }
 
@@ -356,9 +363,24 @@ function entity_position(size, position)
     ];
 }
 
+function entity_touching(a, b)
+{
+    const touching_axis = (a_size, b_size, a_pos, b_pos) => {
+        return Math.abs(b_pos - a_pos) < (a_size + b_size) * 0.5 / tile_size;
+    };
+
+    return touching_axis(a.size.width, b.size.width, a.position[0], b.position[0])
+        && touching_axis(a.size.height, b.size.height, a.position[1], b.position[1]);
+}
+
 function draw_frame()
 {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (levels[current_level] === undefined)
+    {
+        return;
+    }
 
     const camera_position = entities[camera].position;
 
@@ -435,24 +457,56 @@ function update_entities(dt)
     }
 
     entities.forEach((entity) => {
+        if (field_exists(entity.transition))
+        {
+            if (field_exists(entity.position))
+            {
+                const is_touched = entity_touching(
+                    {size: entity.texture[0], position: entity.position},
+                    {size: entities[player].texture[0], position: entities[player].position}
+                );
+
+                if (is_touched)
+                {
+                    level_initialized = false;
+                    current_level = entity.transition;
+                    load_current_level();
+                }
+            }
+        }
+    });
+
+    entities.forEach((entity) => {
         if (field_exists(entity.ai))
         {
             switch (entity.ai.name)
             {
                 case "star":
                 {
-                  if (field_exists(entity.position))
-                  {
-                    entity.ai.angle = (entity.ai.angle + dt * 0.02) % (Math.PI * 2.0);
-                    const circle_position = [Math.cos(entity.ai.angle), Math.sin(entity.ai.angle)].map((x) => x * 1.3);
-                    entity.position = array_add(entity.ai.target, circle_position);
-                  }
+                    if (field_exists(entity.position))
+                    {
+                        entity.ai.angle = (entity.ai.angle + dt * 0.02) % (Math.PI * 2.0);
+                        const circle_position = [Math.cos(entity.ai.angle), Math.sin(entity.ai.angle)].map((x) => x * 1.3);
+                        entity.position = array_add(entity.ai.target, circle_position);
+                    }
 
-                  return;
+                    return;
+                }
+
+                case "snowflake":
+                {
+                    if (field_exists(entity.position))
+                    {
+                        entity.ai.value = (entity.ai.value + dt * 0.006) % 1.0;
+                        const offset = smoothstep(Math.abs(entity.ai.value - 0.5) * 2.0) * 0.7;
+                        entity.position[1] = entity.ai.target + offset;
+                    }
+
+                    return;
                 }
 
                 default:
-                  return;
+                    return;
             }
         }
     });
@@ -470,11 +524,19 @@ function update_frame(current_time)
         frame_number = (frame_number + 1) % animation_limit;
     }
 
-    handle_inputs(dt);
+    if (!level_initialized)
+    {
+        initialize_level();
+    }
 
-    update_entities(dt);
+    if (levels[current_level] !== undefined)
+    {
+        handle_inputs(dt);
 
-    draw_frame();
+        update_entities(dt);
+
+        draw_frame();
+    }
 
     requestAnimationFrame(update_frame);
 }
@@ -502,19 +564,44 @@ function middle_position()
 
 function initialize_current_level()
 {
-    if (current_level === "snow")
+    switch (current_level)
     {
-        const position = array_add(middle_position(), [10.0, 8.0]);
+        case "snow":
+        {
+            const position = array_add(middle_position(), [10.0, 8.0]);
 
-        add_entity({
-            position: position,
-            texture: textures.star,
-            ai: {
-                name: "star",
-                angle: 0.0,
-                target: position
-            }
-        });
+            add_entity({
+                position: position,
+                texture: textures.star,
+                transition: "space",
+                ai: {
+                    name: "star",
+                    angle: 0.0,
+                    target: position
+                }
+            });
+            return;
+        }
+
+        case "space":
+        {
+            const position = array_add(middle_position(), [-8.0, -6.0]);
+
+            add_entity({
+                position: position,
+                texture: textures.snowflake,
+                transition: "snow",
+                ai: {
+                    name: "snowflake",
+                    value: 0.0,
+                    target: position[1]
+                }
+            });
+            return;
+        }
+
+        default:
+            return;
     }
 }
 
@@ -532,6 +619,8 @@ function initialize_level()
     });
 
     initialize_current_level();
+
+    level_initialized = true;
 }
 
 function initialize_scene()
