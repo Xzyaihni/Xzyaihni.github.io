@@ -5,11 +5,19 @@ ctx.imageSmoothingEnabled = false;
 
 let previous_frame_time = 0.0;
 
-const animation_speed = 20;
-let animation_counter = 0;
-
 const animation_limit = 100;
-let frame_number = 0;
+
+let tile_animation = {
+    counter: 0.0,
+    speed: 20.0,
+    frame: 0
+};
+
+let normal_animation = {
+    counter: 0.0,
+    speed: 8.0,
+    frame: 0
+};
 
 let player_speed = 0.05;
 
@@ -28,6 +36,11 @@ let textures = {
 };
 
 let tiles_textures = [];
+
+const animated_tiles = {
+    "space/space1_0.png": ["space/space1_1.png"],
+    "space/space2_0.png": ["space/space2_1.png"]
+};
 
 let entities = [];
 
@@ -162,17 +175,32 @@ function parse_level(text)
 
     const start_index = tiles_textures.length;
 
+    const after_load = () => {
+        waiting_textures -= 1;
+        if (waiting_textures === 0)
+        {
+            try_initialize_scene();
+        }
+    };
+
     const textures = lines.slice(1, lines.length - 1).map((name, index) => {
         const this_index = start_index + index;
 
         load_texture_image_with(name, (texture) => {
-            tiles_textures[this_index] = texture;
+            tiles_textures[this_index] = [texture];
 
-            waiting_textures -= 1;
-            if (waiting_textures === 0)
+            if (animated_tiles[name] !== undefined)
             {
-                try_initialize_scene();
+                animated_tiles[name].forEach((animated_name, animated_index) => {
+                    load_texture_image_with(animated_name, (animated_texture) => {
+                        tiles_textures[this_index][animated_index + 1] = animated_texture;
+
+                        after_load();
+                    });
+                });
             }
+
+            after_load();
         });
 
         return this_index;
@@ -341,7 +369,8 @@ function draw_tiles(camera_position)
         const x = index % width;
         const y = Math.floor(index / width);
 
-        const texture = tiles_textures[tile];
+        const textures = tiles_textures[tile];
+        const texture = textures[tile_animation.frame % textures.length];
 
         ctx.drawImage(
             texture,
@@ -391,7 +420,7 @@ function draw_frame()
         {
             const screen_position = array_sub(entity.position, camera_position);
 
-            const texture = entity.texture[frame_number % entity.texture.length];
+            const texture = entity.texture[normal_animation.frame % entity.texture.length];
             const position = entity_position(texture, screen_position);
 
             ctx.drawImage(
@@ -512,17 +541,25 @@ function update_entities(dt)
     });
 }
 
+function advance_animation(animation, dt)
+{
+    animation.counter += dt;
+
+    if (animation.counter >= animation.speed)
+    {
+        animation.frame = (animation.frame + 1) % animation_limit;
+
+        animation.counter -= animation.speed;
+    }
+}
+
 function update_frame(current_time)
 {
     const dt = Math.min(current_time - previous_frame_time, 0.5);
     previous_frame_time = current_time;
 
-    animation_counter = (animation_counter + 1) % animation_speed;
-
-    if (animation_counter === 0)
-    {
-        frame_number = (frame_number + 1) % animation_limit;
-    }
+    advance_animation(normal_animation, dt);
+    advance_animation(tile_animation, dt);
 
     if (!level_initialized)
     {
