@@ -11,6 +11,8 @@ let animation_counter = 0;
 const animation_limit = 100;
 let frame_number = 0;
 
+const player_speed = 0.05;
+
 const tile_size = 16;
 
 const pixel_scale = 4;
@@ -260,36 +262,49 @@ function on_key_up(e)
 
 function movement_directions(dt)
 {
-    const speed = 0.05;
-    let moved = false;
+    let moved_horizontal = false;
+    let moved_vertical = false;
+
+    let velocity = [0.0, 0.0];
 
     if (keys_pressed.left)
     {
-        moved = true;
-        entities[player].position[0] -= speed * dt;
+        moved_horizontal = true;
+        velocity[0] -= 1.0;
         entities[player].texture = textures.player_walk_left;
     }
 
     if (keys_pressed.right)
     {
-        moved = true;
-        entities[player].position[0] += speed * dt;
+        moved_horizontal = true;
+        velocity[0] += 1.0;
         entities[player].texture = textures.player_walk_right;
     }
 
     if (keys_pressed.up)
     {
-        moved = true;
-        entities[player].position[1] -= speed * dt;
+        moved_vertical = true;
+        velocity[1] -= 1.0;
         entities[player].texture = textures.player_walk_up;
     }
 
     if (keys_pressed.down)
     {
-        moved = true;
-        entities[player].position[1] += speed * dt;
+        moved_vertical = true;
+        velocity[1] += 1.0;
         entities[player].texture = textures.player_walk_down;
     }
+
+    velocity = velocity.map((x) => x * player_speed * dt);
+
+    if (moved_horizontal && moved_vertical)
+    {
+        velocity = velocity.map((x) => x / Math.sqrt(2.0));
+    }
+
+    entities[player].position = array_add(entities[player].position, velocity);
+
+    const moved = moved_vertical || moved_horizontal;
 
     if (!moved)
     {
@@ -368,29 +383,33 @@ function draw_frame()
     });
 }
 
+function level_edges()
+{
+    const level_size = levels[current_level].size;
+
+    return [
+        [0.0, level_size[0] - canvas.width / position_scale],
+        [-level_size[1] + 1, 1 - canvas.height / position_scale]
+    ];
+}
+
 function update_entities(dt)
 {
     {
-        const level_size = levels[current_level].size;
-
         const camera_entity = entities[camera];
 
         const distance = array_sub(entities[player].position, camera_entity.position).map((x) => x * 0.1);
         camera_entity.position = array_add(camera_entity.position, distance);
 
-        const limit_camera = (size, x, vertical) => {
-            if (vertical)
-            {
-                return Math.min(Math.max(x, -size + 1), 1 - canvas.height / position_scale);
-            } else
-            {
-                return Math.min(Math.max(x, 0.0), size - canvas.width / position_scale);
-            }
+        const edges = level_edges();
+
+        const limit_camera = (edges, x) => {
+            return Math.min(Math.max(x, edges[0]), edges[1]);
         };
 
         camera_entity.position = [
-            limit_camera(level_size[0], camera_entity.position[0], false),
-            limit_camera(level_size[1], camera_entity.position[1], true)
+            limit_camera(edges[0], camera_entity.position[0]),
+            limit_camera(edges[1], camera_entity.position[1])
         ];
     }
 
