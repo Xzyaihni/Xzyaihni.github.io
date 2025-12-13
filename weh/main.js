@@ -208,9 +208,12 @@ function parse_level(text)
 
     const tiles = lines[lines.length - 1].split(' ').map((x) => start_index + Number(x));
 
+    const looping = true;
+
     return {
         size,
-        tiles
+        tiles,
+        looping
     };
 }
 
@@ -362,24 +365,48 @@ function draw_tiles(camera_position)
     const level = levels[current_level];
 
     const width = level.size[0];
+    const height = level.size[1];
 
     const tiles = level.tiles;
 
-    tiles.forEach((tile, index) => {
-        const x = index % width;
-        const y = Math.floor(index / width);
+    const x_size = canvas.width / position_scale + 1;
+    const y_size = canvas.height / position_scale + 1;
 
-        const textures = tiles_textures[tile];
-        const texture = textures[tile_animation.frame % textures.length];
+    const x_begin = Math.floor(camera_position[0]);
+    const y_begin = Math.floor(-camera_position[1] - y_size + 2);
 
-        ctx.drawImage(
-            texture,
-            (x - camera_position[0]) * position_scale - 0.5,
-            (-y - camera_position[1]) * position_scale - 0.5,
-            tile_size * pixel_scale + 1,
-            tile_size * pixel_scale + 1
-        );
-    });
+    for(let x = x_begin; x < x_size + x_begin; ++x)
+    {
+        for(let y = y_begin; y < y_size + y_begin; ++y)
+        {
+            const wrap_pos = (size, value) =>
+            {
+                if (value < 0)
+                {
+                    return size + value;
+                } else if (value >= size)
+                {
+                    return value - size;
+                } else
+                {
+                    return value;
+                }
+            };
+
+            const index = wrap_pos(height, y) * width + wrap_pos(width, x);
+
+            const textures = tiles_textures[tiles[index]];
+            const texture = textures[tile_animation.frame % textures.length];
+
+            ctx.drawImage(
+                texture,
+                (x - camera_position[0]) * position_scale - 0.5,
+                (-y - camera_position[1]) * position_scale - 0.5,
+                tile_size * pixel_scale + 1,
+                tile_size * pixel_scale + 1
+            );
+        }
+    }
 }
 
 function entity_position(size, position)
@@ -392,10 +419,33 @@ function entity_position(size, position)
     ];
 }
 
+function with_closest(edges, compare, value)
+{
+    const total = edges[1] - edges[0];
+    const middle = edges[0] + total * 0.5;
+
+    if (compare < middle)
+    {
+        return value - total;
+    } else
+    {
+        return value + total;
+    }
+}
+
 function entity_touching(a, b)
 {
+    const edges = level_edges({width: 0.0, height: 0.0});
+
     const touching_axis = (a_size, b_size, a_pos, b_pos) => {
-        return Math.abs(b_pos - a_pos) < (a_size + b_size) * 0.5 / tile_size;
+        const touch_distance = (a_size + b_size) * 0.5 / tile_size;
+
+        const touching_points = (a, b) => Math.abs(b - a) < touch_distance;
+
+        return touching_points(a_pos, b_pos)
+            || touching_points(with_closest(edges[0], a_pos, a_pos), b_pos)
+            || touching_points(a_pos, with_closest(edges[1], b_pos, b_pos))
+            || touching_points(with_closest(edges[0], a_pos, a_pos), with_closest(edges[1], b_pos, b_pos));
     };
 
     return touching_axis(a.size.width, b.size.width, a.position[0], b.position[0])
@@ -404,32 +454,61 @@ function entity_touching(a, b)
 
 function draw_frame()
 {
+    const level = levels[current_level];
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    if (levels[current_level] === undefined)
+    if (level === undefined)
     {
         return;
     }
+
+    const looping = level.looping;
 
     const camera_position = entities[camera].position;
 
     draw_tiles(camera_position);
 
+    const edges = level_edges({width: 0.0, height: 0.0});
+
     entities.forEach((entity) => {
         if (field_exists(entity.texture) && field_exists(entity.position))
         {
-            const screen_position = array_sub(entity.position, camera_position);
+            const draw_at = (x, y) => {
+                const screen_position = array_sub([x, y], camera_position);
 
-            const texture = entity.texture[normal_animation.frame % entity.texture.length];
-            const position = entity_position(texture, screen_position);
+                const texture = entity.texture[normal_animation.frame % entity.texture.length];
+                const position = entity_position(texture, screen_position);
 
-            ctx.drawImage(
-                texture,
-                position[0],
-                position[1],
-                texture.width * pixel_scale,
-                texture.height * pixel_scale
-            );
+                ctx.drawImage(
+                    texture,
+                    position[0],
+                    position[1],
+                    texture.width * pixel_scale,
+                    texture.height * pixel_scale
+                );
+            };
+
+            const this_entity_position = entity.position;
+            draw_at(this_entity_position[0], this_entity_position[1]);
+
+            if (looping)
+            {
+                draw_at(
+                    with_closest(edges[0], camera_position[0], this_entity_position[0]),
+                    this_entity_position[1]
+                );
+
+                draw_at(
+                    this_entity_position[0],
+                    with_closest(edges[1], camera_position[1], this_entity_position[1])
+                );
+
+                draw_at(
+                    with_closest(edges[0], camera_position[0], this_entity_position[0]),
+                    with_closest(edges[1], camera_position[1], this_entity_position[1])
+                );
+            }
         }
     });
 }
@@ -460,29 +539,57 @@ function update_entities(dt)
         const distance = array_sub(entities[player].position, camera_entity.position).map((x) => x * 0.1);
         camera_entity.position = array_add(camera_entity.position, distance);
 
-        const edges = level_edges(null);
+        if (!levels[current_level].looping)
+        {
+            const edges = level_edges(null);
 
-        const limit_camera = (edges, x) => {
-            return Math.min(Math.max(x, edges[0]), edges[1]);
-        };
+            const limit_camera = (edges, x) => {
+                return Math.min(Math.max(x, edges[0]), edges[1]);
+            };
 
-        camera_entity.position = [
-            limit_camera(edges[0], camera_entity.position[0]),
-            limit_camera(edges[1], camera_entity.position[1])
-        ];
+            camera_entity.position = [
+                limit_camera(edges[0], camera_entity.position[0]),
+                limit_camera(edges[1], camera_entity.position[1])
+            ];
+        }
     }
 
     {
-        const edges = level_edges(entities[player].texture[0]);
+        const camera_entity = entities[camera];
 
-        const limit_player  = (edges, x) => {
-            return Math.min(Math.max(x, edges[0]), edges[1]);
+        const size = entities[player].texture[0];
+
+        const limit_player  = (edges, wrap_edges, x, camera_x) => {
+            if (levels[current_level].looping)
+            {
+                const total = wrap_edges[1] - wrap_edges[0];
+
+                if (x < wrap_edges[0])
+                {
+                    return [total, total + x];
+                } else if (x >= wrap_edges[1])
+                {
+                    return [-total, x - total];
+                } else
+                {
+                    return [0.0, x];
+                }
+            } else
+            {
+                return [0.0, Math.min(Math.max(x, edges[0]), edges[1])];
+            }
         };
 
-        entities[player].position = [
-            limit_player(edges[0], entities[player].position[0]),
-            limit_player(edges[1], entities[player].position[1])
-        ];
+        const edges = level_edges(size);
+        const wrap_edges = level_edges({width: 0.0, height: 0.0});
+
+        const [camera_x, limited_x] = limit_player(edges[0], wrap_edges[0], entities[player].position[0]);
+        const [camera_y, limited_y] = limit_player(edges[1], wrap_edges[1], entities[player].position[1]);
+
+        camera_entity.position[0] += camera_x;
+        camera_entity.position[1] += camera_y;
+
+        entities[player].position = [limited_x, limited_y];
     }
 
     entities.forEach((entity) => {
