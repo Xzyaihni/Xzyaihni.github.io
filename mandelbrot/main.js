@@ -189,8 +189,8 @@ function on_key_up(e)
 
 function movement_directions(dt)
 {
-    const speed = 0.02 * zoom;
-    const zoom_speed = 0.9;
+    const speed = 0.625 * zoom;
+    const zoom_speed = 0.7;
 
     let moved = false;
 
@@ -261,7 +261,7 @@ function draw_frame()
 
 function update_frame(current_time)
 {
-    const dt = Math.min(current_time - previous_frame_time, 0.5);
+    const dt = Math.min(current_time - previous_frame_time, (1000.0 / 30.0)) * 0.001;
     previous_frame_time = current_time;
 
     handle_inputs(dt);
