@@ -481,7 +481,8 @@ function draw_blink()
         ctx.fillRect(0, 0, canvas.width, canvas.height * Math.min(Math.max(fraction, 0.0), 1.0));
     } else if (leave_transition !== null)
     {
-        const fraction = Math.pow(leave_transition / blink_time_up, 3.0) - 0.1;
+        const time_fraction = leave_transition / blink_time_up;
+        const fraction = Math.pow(time_fraction, 4.0) - 0.1 * (1.0 - time_fraction);
 
         ctx.fillRect(0, 0, canvas.width, canvas.height * Math.min(Math.max(fraction, 0.0), 1.0));
     }
