@@ -32,10 +32,14 @@ const position_scale = 16 * pixel_scale;
 const levels = {
 };
 
+let waiting_textures = 0;
+
 let current_transition = null;
 let leave_transition = null;
 
 let level_initialized = false;
+let level_loaded = false;
+
 let current_level = "snow";
 
 let textures = {
@@ -49,7 +53,7 @@ const animated_tiles = {
     "pink_bubble/odoto_0.png": ["pink_bubble/odoto_1.png", "pink_bubble/odoto_2.png"],
     "pink_bubble/cabcoloncp_0.png": ["pink_bubble/cabcoloncp_1.png", "pink_bubble/cabcoloncp_2.png"],
     "pink_bubble/colonthree_0.png": ["pink_bubble/colonthree_1.png", "pink_bubble/colonthree_2.png"],
-    "pink_bubble/dashwdash_0.png": ["pink_bubble/dashwdash_1.png", "pink_bubble/dashwdash_2.png"]
+    "pink_bubble/dashwdash_0.png": ["pink_bubble/dashwdash_1.png"]
 };
 
 let entities = [];
@@ -79,6 +83,8 @@ load_textures({
 });
 
 load_current_level();
+
+update_frame(0.0);
 
 function smoothstep(x)
 {
@@ -170,7 +176,7 @@ function load_textures(textures)
         state = load_texture(state, textures[name], name);
     }
 
-    waiting_textures = state.count;
+    waiting_textures += state.count;
 
     state.loader();
 }
@@ -194,7 +200,16 @@ function parse_level(text)
         }
     };
 
-    const textures = lines.slice(1, lines.length - 1).map((name, index) => {
+    const textures_lines = lines.slice(1, lines.length - 1);
+
+    textures_lines.forEach((name) => {
+        if (animated_tiles[name] !== undefined)
+        {
+            waiting_textures += animated_tiles[name].length;
+        }
+    });
+
+    const textures = textures_lines.map((name, index) => {
         const this_index = start_index + index;
 
         load_texture_image_with(name, (texture) => {
@@ -234,6 +249,8 @@ function load_current_level()
     {
         return;
     }
+
+    level_loaded = false;
 
     get_resource(current_level + ".save", "text", (text) => {
         levels[current_level] = parse_level(text);
@@ -570,6 +587,7 @@ function level_edges(size)
 function transition_done(target)
 {
     level_initialized = false;
+
     current_level = target;
     load_current_level();
 
@@ -724,7 +742,7 @@ function update_frame(current_time)
     advance_animation(normal_animation, dt);
     advance_animation(tile_animation, dt);
 
-    if (levels[current_level] !== undefined)
+    if (levels[current_level] !== undefined && level_loaded)
     {
         if (!level_initialized)
         {
@@ -763,16 +781,6 @@ function update_frame(current_time)
     }
 
     requestAnimationFrame(update_frame);
-}
-
-function try_initialize_scene()
-{
-    if (levels[current_level] === undefined)
-    {
-        return;
-    }
-
-    initialize_scene();
 }
 
 function middle_position()
@@ -889,11 +897,7 @@ function initialize_level()
     level_initialized = true;
 }
 
-function initialize_scene()
+function try_initialize_scene()
 {
-    initialize_level();
-
-    draw_frame();
-
-    requestAnimationFrame(update_frame);
+    level_loaded = true;
 }
