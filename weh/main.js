@@ -39,7 +39,11 @@ let tiles_textures = [];
 
 const animated_tiles = {
     "space/space1_0.png": ["space/space1_1.png"],
-    "space/space2_0.png": ["space/space2_1.png"]
+    "space/space2_0.png": ["space/space2_1.png"],
+    "pink_bubble/odoto_0.png": ["pink_bubble/odoto_1.png", "pink_bubble/odoto_2.png"],
+    "pink_bubble/cabcoloncp_0.png": ["pink_bubble/cabcoloncp_1.png", "pink_bubble/cabcoloncp_2.png"],
+    "pink_bubble/colonthree_0.png": ["pink_bubble/colonthree_1.png", "pink_bubble/colonthree_2.png"],
+    "pink_bubble/dashwdash_0.png": ["pink_bubble/dashwdash_1.png", "pink_bubble/dashwdash_2.png"]
 };
 
 let entities = [];
@@ -58,6 +62,7 @@ document.addEventListener("keydown", on_key_down);
 document.addEventListener("keyup", on_key_up);
 
 load_textures({
+    pink_bubble: ["pink_bubble.png"],
     snowflake: ["snowflake.png"],
     star: ["star.png"],
     player_stand: ["player_stand.png"],
@@ -396,7 +401,7 @@ function draw_tiles(camera_position)
             const index = wrap_pos(height, y) * width + wrap_pos(width, x);
 
             const textures = tiles_textures[tiles[index]];
-            const texture = textures[tile_animation.frame % textures.length];
+            const texture = textures[(tile_animation.frame + index) % textures.length];
 
             ctx.drawImage(
                 texture,
@@ -592,14 +597,16 @@ function update_entities(dt)
         entities[player].position = [limited_x, limited_y];
     }
 
-    entities.forEach((entity) => {
+    for (const entity_index in entities)
+    {
+        const entity = entities[entity_index];
         if (field_exists(entity.transition))
         {
             if (field_exists(entity.position))
             {
                 const is_touched = entity_touching(
                     {size: entity.texture[0], position: entity.position},
-                    {size: entities[player].texture[0], position: entities[player].position}
+                    {size: entities[player].collider, position: entities[player].position}
                 );
 
                 if (is_touched)
@@ -607,10 +614,11 @@ function update_entities(dt)
                     level_initialized = false;
                     current_level = entity.transition;
                     load_current_level();
+                    return;
                 }
             }
         }
-    });
+    }
 
     entities.forEach((entity) => {
         if (field_exists(entity.ai))
@@ -712,35 +720,76 @@ function initialize_current_level()
     {
         case "snow":
         {
-            const position = array_add(middle_position(), [10.0, 8.0]);
+            {
+                const position = array_add(middle_position(), [-8.0, -5.0]);
 
-            add_entity({
-                position: position,
-                texture: textures.star,
-                transition: "space",
-                ai: {
-                    name: "star",
-                    angle: 0.0,
-                    target: position
-                }
-            });
+                add_entity({
+                    position: position,
+                    texture: textures.pink_bubble,
+                    transition: "pink_bubble",
+                    ai: {
+                        name: "snowflake",
+                        value: 0.0,
+                        target: position[1]
+                    }
+                });
+            }
+
+            {
+                const position = array_add(middle_position(), [10.0, 8.0]);
+
+                add_entity({
+                    position: position,
+                    texture: textures.star,
+                    transition: "space",
+                    ai: {
+                        name: "star",
+                        angle: 0.0,
+                        target: position
+                    }
+                });
+            }
+
+            return;
+        }
+
+        case "pink_bubble":
+        {
+            {
+                const position = array_add(middle_position(), [-10.0, 2.0]);
+
+                add_entity({
+                    position: position,
+                    texture: textures.star,
+                    transition: "space",
+                    ai: {
+                        name: "star",
+                        angle: 0.0,
+                        target: position
+                    }
+                });
+            }
+
             return;
         }
 
         case "space":
         {
-            const position = array_add(middle_position(), [-8.0, -6.0]);
+            {
+                const position = array_add(middle_position(), [-8.0, -6.0]);
 
-            add_entity({
-                position: position,
-                texture: textures.snowflake,
-                transition: "snow",
-                ai: {
-                    name: "snowflake",
-                    value: 0.0,
-                    target: position[1]
-                }
-            });
+                add_entity({
+                    position: position,
+                    texture: textures.snowflake,
+                    transition: "snow",
+                    ai: {
+                        name: "snowflake",
+                        value: 0.0,
+                        target: position[1]
+                    }
+                });
+            }
+
             return;
         }
 
@@ -759,7 +808,8 @@ function initialize_level()
 
     player = add_entity({
         position: middle_position(),
-        texture: textures.player_stand
+        texture: textures.player_stand,
+        collider: {width: 10.0, height: 16.0}
     });
 
     initialize_current_level();
