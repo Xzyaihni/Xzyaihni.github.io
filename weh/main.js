@@ -1,3 +1,5 @@
+"use strict";
+
 const canvas = document.getElementById("display_canvas");
 const ctx = canvas.getContext("2d");
 
@@ -32,7 +34,10 @@ const position_scale = 16 * pixel_scale;
 const levels = {
 };
 
+let waiting_sprite_textures = 0;
 let waiting_textures = 0;
+
+let sprite_textures_loaded = false;
 
 let current_transition = null;
 let leave_transition = blink_time_up;
@@ -86,6 +91,35 @@ load_current_level();
 
 update_frame(0.0);
 
+const resizer = new ResizeObserver(on_resize_observer);
+resizer.observe(canvas, {box: "content-box"});
+
+function on_resize_observer(events)
+{
+    for (const event of events)
+    {
+        if (!event.devicePixelContentBoxSize)
+        {
+            return;
+        }
+
+        const box = event.devicePixelContentBoxSize[0];
+
+        resize_canvas_correct(box.inlineSize, box.blockSize);
+    }
+}
+
+function resize_canvas_correct(new_width, new_height)
+{
+    if (canvas.width !== new_width || canvas.height !== new_height)
+    {
+        canvas.width = new_width;
+        canvas.height = new_height;
+
+        ctx.imageSmoothingEnabled = false;
+    }
+}
+
 function smoothstep(x)
 {
     return x * x * (3.0 - 2.0 * x);
@@ -130,11 +164,11 @@ function on_texture_loaded(texture, name)
         textures[name].push(texture);
     }
 
-    waiting_textures -= 1;
+    waiting_sprite_textures -= 1;
 
-    if (waiting_textures === 0)
+    if (waiting_sprite_textures === 0)
     {
-        try_initialize_scene();
+        sprite_textures_loaded = true;
     }
 }
 
@@ -176,7 +210,7 @@ function load_textures(textures)
         state = load_texture(state, textures[name], name);
     }
 
-    waiting_textures += state.count;
+    waiting_sprite_textures += state.count;
 
     state.loader();
 }
@@ -188,15 +222,13 @@ function parse_level(text)
     const size_text = lines[0];
     const size = size_text.split('x').map(Number);
 
-    waiting_textures += lines.length - 2;
-
     const start_index = tiles_textures.length;
 
     const after_load = () => {
         waiting_textures -= 1;
         if (waiting_textures === 0)
         {
-            try_initialize_scene();
+            level_loaded = true;
         }
     };
 
@@ -207,6 +239,8 @@ function parse_level(text)
         {
             waiting_textures += animated_tiles[name].length;
         }
+
+        waiting_textures += 1;
     });
 
     const textures = textures_lines.map((name, index) => {
@@ -424,6 +458,13 @@ function draw_tiles(camera_position)
             const index = wrap_pos(height, y) * width + wrap_pos(width, x);
 
             const textures = tiles_textures[tiles[index]];
+
+            if (textures === undefined)
+            {
+                console.log("unloaded textures", tiles[index]);
+                continue;
+            }
+
             const texture = textures[(tile_animation.frame + index) % textures.length];
 
             ctx.drawImage(
@@ -742,7 +783,7 @@ function update_frame(current_time)
     advance_animation(normal_animation, dt);
     advance_animation(tile_animation, dt);
 
-    if (levels[current_level] !== undefined && level_loaded)
+    if (levels[current_level] !== undefined && level_loaded && sprite_textures_loaded)
     {
         if (!level_initialized)
         {
@@ -895,9 +936,4 @@ function initialize_level()
     initialize_current_level();
 
     level_initialized = true;
-}
-
-function try_initialize_scene()
-{
-    level_loaded = true;
 }

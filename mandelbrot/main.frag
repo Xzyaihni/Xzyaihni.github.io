@@ -8,7 +8,7 @@
 
 out vec4 frag_color;
 
-const ivec2 CANVAS_DIMENSIONS = ivec2(640, 640);
+uniform vec2 canvas_dimensions;
 
 uniform vec2 pos;
 uniform float zoom;
@@ -52,7 +52,7 @@ float lab_f(float t)
 
 void main()
 {
-    vec2 pixel = gl_FragCoord.xy / vec2(CANVAS_DIMENSIONS);
+    vec2 pixel = gl_FragCoord.xy / canvas_dimensions;
 
     float depth = mandelbrot(pixel);
 

@@ -22,6 +22,48 @@ document.addEventListener("DOMContentLoaded", main);
 document.addEventListener("keydown", on_key_down);
 document.addEventListener("keyup", on_key_up);
 
+const resizer = new ResizeObserver(on_resize_observer);
+resizer.observe(canvas, {box: "content-box"});
+
+function on_resize_observer(events)
+{
+    for (const event of events)
+    {
+        if (!event.devicePixelContentBoxSize)
+        {
+            return;
+        }
+
+        const box = event.devicePixelContentBoxSize[0];
+
+        resize_canvas_correct(box.inlineSize, box.blockSize);
+    }
+}
+
+function resize_canvas_correct(new_width, new_height)
+{
+    if (canvas.width !== new_width || canvas.height !== new_height)
+    {
+        canvas.width = new_width;
+        canvas.height = new_height;
+
+        gl.viewport(0, 0, canvas.width, canvas.height);
+
+        main();
+    }
+}
+
+function canvas_dependent()
+{
+    if (program_info === null)
+    {
+        return;
+    }
+
+    const dpr = window.devicePixelRatio;
+    gl.uniform2f(program_info.uniform_locations.canvas_dimensions, canvas.width * dpr, canvas.height * dpr);
+}
+
 function array_add(a, b)
 {
     return a.map((x, i) => x + b[i]);
@@ -212,6 +254,8 @@ function initialize_scene()
         return;
     }
 
+    canvas_dependent();
+
     draw_frame();
 
     requestAnimationFrame(update_frame);
@@ -265,6 +309,7 @@ function attributes_info()
         program_info.uniform_locations[name] = gl.getUniformLocation(shader_program, name);
     };
 
+    add_uniform("canvas_dimensions");
     add_uniform("pos");
     add_uniform("zoom");
 
