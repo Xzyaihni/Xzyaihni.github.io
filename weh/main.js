@@ -546,8 +546,6 @@ function draw_frame()
             }
         }
     });
-
-    draw_blink();
 }
 
 function level_edges(size)
@@ -738,6 +736,8 @@ function update_frame(current_time)
 
         draw_frame();
     }
+
+    draw_blink();
 
     if (current_transition !== null)
     {
