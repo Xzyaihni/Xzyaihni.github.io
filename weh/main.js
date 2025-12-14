@@ -9,17 +9,20 @@ const animation_limit = 100;
 
 let tile_animation = {
     counter: 0.0,
-    speed: 20.0,
+    speed: 0.64,
     frame: 0
 };
 
 let normal_animation = {
     counter: 0.0,
-    speed: 8.0,
+    speed: 0.256,
     frame: 0
 };
 
-let player_speed = 0.05;
+let player_speed = 1.5625;
+
+const blink_time = 0.5;
+const blink_time_up = 0.2;
 
 const tile_size = 16;
 
@@ -28,6 +31,9 @@ const position_scale = 16 * pixel_scale;
 
 const levels = {
 };
+
+let current_transition = null;
+let leave_transition = null;
 
 let level_initialized = false;
 let current_level = "snow";
@@ -457,6 +463,30 @@ function entity_touching(a, b)
         && touching_axis(a.size.height, b.size.height, a.position[1], b.position[1]);
 }
 
+function draw_blink()
+{
+    ctx.fillStyle = "hsv(50%, 10%, 10%)";
+
+    if (!level_initialized)
+    {
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        return;
+    }
+
+    if (current_transition !== null)
+    {
+        const fraction = (1.0 - Math.pow(current_transition.time / blink_time, 3.0)) + 0.1;
+
+        ctx.fillRect(0, 0, canvas.width, canvas.height * Math.min(Math.max(fraction, 0.0), 1.0));
+    } else if (leave_transition !== null)
+    {
+        const fraction = Math.pow(leave_transition / blink_time_up, 3.0) - 0.1;
+
+        ctx.fillRect(0, 0, canvas.width, canvas.height * Math.min(Math.max(fraction, 0.0), 1.0));
+    }
+}
+
 function draw_frame()
 {
     const level = levels[current_level];
@@ -516,6 +546,8 @@ function draw_frame()
             }
         }
     });
+
+    draw_blink();
 }
 
 function level_edges(size)
@@ -534,6 +566,28 @@ function level_edges(size)
         [0.0 + x_bottom_offset, level_size[0] + x_top_offset],
         [-level_size[1] + 1 + y_bottom_offset, 1 + y_top_offset]
     ];
+}
+
+function transition_done(target)
+{
+    level_initialized = false;
+    current_level = target;
+    load_current_level();
+
+    leave_transition = blink_time_up;
+}
+
+function transition_level(target)
+{
+    if (current_transition !== null)
+    {
+        return;
+    }
+
+    current_transition = {
+        time: blink_time,
+        target
+    };
 }
 
 function update_entities(dt)
@@ -597,9 +651,7 @@ function update_entities(dt)
         entities[player].position = [limited_x, limited_y];
     }
 
-    for (const entity_index in entities)
-    {
-        const entity = entities[entity_index];
+    entities.forEach((entity) => {
         if (field_exists(entity.transition))
         {
             if (field_exists(entity.position))
@@ -611,14 +663,11 @@ function update_entities(dt)
 
                 if (is_touched)
                 {
-                    level_initialized = false;
-                    current_level = entity.transition;
-                    load_current_level();
-                    return;
+                    transition_level(entity.transition);
                 }
             }
         }
-    }
+    });
 
     entities.forEach((entity) => {
         if (field_exists(entity.ai))
@@ -629,7 +678,7 @@ function update_entities(dt)
                 {
                     if (field_exists(entity.position))
                     {
-                        entity.ai.angle = (entity.ai.angle + dt * 0.02) % (Math.PI * 2.0);
+                        entity.ai.angle = (entity.ai.angle + dt * 0.625) % (Math.PI * 2.0);
                         const circle_position = [Math.cos(entity.ai.angle), Math.sin(entity.ai.angle)].map((x) => x * 1.3);
                         entity.position = array_add(entity.ai.target, circle_position);
                     }
@@ -641,7 +690,7 @@ function update_entities(dt)
                 {
                     if (field_exists(entity.position))
                     {
-                        entity.ai.value = (entity.ai.value + dt * 0.006) % 1.0;
+                        entity.ai.value = (entity.ai.value + dt * 0.1875) % 1.0;
                         const offset = smoothstep(Math.abs(entity.ai.value - 0.5) * 2.0) * 0.7;
                         entity.position[1] = entity.ai.target + offset;
                     }
@@ -670,24 +719,46 @@ function advance_animation(animation, dt)
 
 function update_frame(current_time)
 {
-    const dt = Math.min(current_time - previous_frame_time, 0.5);
+    const dt = Math.min(current_time - previous_frame_time, (1000.0 / 30.0)) * 0.001;
     previous_frame_time = current_time;
 
     advance_animation(normal_animation, dt);
     advance_animation(tile_animation, dt);
 
-    if (!level_initialized)
-    {
-        initialize_level();
-    }
-
     if (levels[current_level] !== undefined)
     {
+        if (!level_initialized)
+        {
+            initialize_level();
+        }
+
         handle_inputs(dt);
 
         update_entities(dt);
 
         draw_frame();
+    }
+
+    if (current_transition !== null)
+    {
+        current_transition.time -= dt;
+
+        if (current_transition.time <= 0.0)
+        {
+            transition_done(current_transition.target);
+
+            current_transition = null;
+        }
+    }
+
+    if (leave_transition !== null)
+    {
+        leave_transition -= dt;
+
+        if (leave_transition <= 0.0)
+        {
+            leave_transition = null;
+        }
     }
 
     requestAnimationFrame(update_frame);
