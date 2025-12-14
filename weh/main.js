@@ -35,7 +35,7 @@ const levels = {
 let waiting_textures = 0;
 
 let current_transition = null;
-let leave_transition = null;
+let leave_transition = blink_time_up;
 
 let level_initialized = false;
 let level_loaded = false;
@@ -754,6 +754,16 @@ function update_frame(current_time)
         update_entities(dt);
 
         draw_frame();
+
+        if (leave_transition !== null)
+        {
+            leave_transition -= dt;
+
+            if (leave_transition <= 0.0)
+            {
+                leave_transition = null;
+            }
+        }
     }
 
     draw_blink();
@@ -767,16 +777,6 @@ function update_frame(current_time)
             transition_done(current_transition.target);
 
             current_transition = null;
-        }
-    }
-
-    if (leave_transition !== null)
-    {
-        leave_transition -= dt;
-
-        if (leave_transition <= 0.0)
-        {
-            leave_transition = null;
         }
     }
 
