@@ -3,6 +3,9 @@
 const canvas = document.getElementById("display_canvas");
 const ctx = canvas.getContext("2d");
 
+const explored_text = document.getElementById("explored_text");
+const offline_button = document.getElementById("offline_button");
+
 ctx.imageSmoothingEnabled = false;
 
 let previous_frame_time = 0.0;
@@ -32,6 +35,9 @@ const pixel_scale = 4;
 const position_scale = 16 * pixel_scale;
 
 const levels = {
+    snow: null,
+    space: null,
+    pink_bubble: null
 };
 
 let waiting_sprite_textures = 0;
@@ -75,6 +81,8 @@ let camera = null;
 
 document.addEventListener("keydown", on_key_down);
 document.addEventListener("keyup", on_key_up);
+
+offline_button.addEventListener("click", enable_offline);
 
 load_textures({
     pink_bubble: ["pink_bubble.png"],
@@ -273,22 +281,69 @@ function parse_level(text)
     return {
         size,
         tiles,
-        looping
+        looping,
+        explored: false
     };
+}
+
+function load_level_inner(level)
+{
+    if (levels[level] !== null)
+    {
+        return;
+    }
+
+    get_resource(level + ".save", "text", (text) => {
+        levels[level] = parse_level(text);
+
+        for (const level in levels)
+        {
+            if (levels[level] === null)
+            {
+                return;
+            }
+        }
+
+        offline_button.innerHTML = "no internet needed now!";
+    });
 }
 
 function load_current_level()
 {
-    if (levels[current_level] !== undefined)
+    if (levels[current_level] !== null)
     {
         return;
     }
 
     level_loaded = false;
 
-    get_resource(current_level + ".save", "text", (text) => {
-        levels[current_level] = parse_level(text);
-    });
+    load_level_inner(current_level);
+}
+
+function enable_offline()
+{
+    for (const level in levels)
+    {
+        load_level_inner(level);
+    }
+}
+
+function update_explored()
+{
+    let explored = 0;
+    let total = 0;
+
+    for (const level in levels)
+    {
+        if (levels[level] !== null && levels[level].explored)
+        {
+            explored += 1;
+        }
+
+        total += 1;
+    }
+
+    explored_text.innerHTML = "explored: " + explored + "/" + total;
 }
 
 function array_add(a, b)
@@ -783,8 +838,14 @@ function update_frame(current_time)
     advance_animation(normal_animation, dt);
     advance_animation(tile_animation, dt);
 
-    if (levels[current_level] !== undefined && level_loaded && sprite_textures_loaded)
+    if (levels[current_level] !== null && level_loaded && sprite_textures_loaded)
     {
+        if (!levels[current_level])
+        {
+            console.log("level doesnt exist: " + current_level);
+            return;
+        }
+
         if (!level_initialized)
         {
             initialize_level();
@@ -936,4 +997,7 @@ function initialize_level()
     initialize_current_level();
 
     level_initialized = true;
+
+    levels[current_level].explored = true;
+    update_explored();
 }

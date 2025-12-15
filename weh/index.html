@@ -11,6 +11,31 @@
         background: hsl(330, 45%, 70%);
       }
 
+      button
+      {
+        padding: 5px 25px;
+
+        font-size: 25px;
+
+        border: none;
+
+        background-color: #ffc4d5;
+        color: #ffffff;
+      }
+
+      button:hover
+      {
+        background-color: hsl(330, 70%, 90%);
+      }
+
+      .text
+      {
+        color: #ffc4d5;
+        font-size: 25px;
+
+        -webkit-text-stroke: 0.5px #ffffff;
+      }
+
       .centered
       {
         display: flex;
@@ -46,11 +71,15 @@
     </style>
   </head>
   <body>
-    <p class="centered">w/a/s/d to move</p>
+    <p class="centered text">w/a/s/d to move</p>
     <div class="centered" id="main_grid">
       <canvas id="display_canvas">
         sowy couldnt display canvas, something wrong ; -;
       </canvas>
+    </div>
+    <p class="centered text" id="explored_text">explored: ?/?</p>
+    <div class="centered">
+      <button type="button" id="offline_button">offline: disabled</button>
     </div>
   </body>
 </html>
