@@ -48,16 +48,8 @@
 	  margin: 5px;
       }
 
-      #main_grid
-      {
-        display: grid;
-
-        grid-template-columns: 33% 33% 33%;
-      }
-
       #display_canvas
       {
-        grid-column: 2;
         image-rendering: pixelated;
       }
 
@@ -71,8 +63,8 @@
     </style>
   </head>
   <body>
-    <p class="centered text">w/a/s/d to move</p>
-    <div class="centered" id="main_grid">
+    <p class="centered text" id="controls_text">w/a/s/d to move</p>
+    <div class="centered">
       <canvas id="display_canvas">
         sowy couldnt display canvas, something wrong ; -;
       </canvas>

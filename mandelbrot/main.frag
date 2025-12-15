@@ -1,12 +1,8 @@
-#version 300 es
-
 #ifdef GL_FRAGMENT_PRECISION_HIGH
     precision highp float;
 #else
     precision mediump float;
 #endif
-
-out vec4 frag_color;
 
 uniform vec2 canvas_dimensions;
 
@@ -31,8 +27,8 @@ float mandelbrot(vec2 pixel)
             return float(i) / float(ITERATIONS);
         }
 
-        z_real += (pixel.x - 0.5) * zoom + pos.x;
-        z_imag += (pixel.y - 0.5) * zoom + pos.y;
+        z_real += pixel.x * zoom + pos.x;
+        z_imag += pixel.y * zoom + pos.y;
     }
 
     return 1.0;
@@ -79,5 +75,5 @@ void main()
         vec3(-0.4985314, 0.0415560, 1.0572252)
     ) * xyz / 255.0);
 
-    frag_color = vec4(color, 1.0);
+    gl_FragColor = vec4(color, 1.0);
 }

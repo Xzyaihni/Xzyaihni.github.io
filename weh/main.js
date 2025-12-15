@@ -84,6 +84,11 @@ document.addEventListener("keyup", on_key_up);
 
 offline_button.addEventListener("click", enable_offline);
 
+if (window.navigator.maxTouchPoints > 1)
+{
+    document.getElementById("controls_text").innerHTML += " (or touch the game)";
+}
+
 load_textures({
     pink_bubble: ["pink_bubble.png"],
     snowflake: ["snowflake.png"],

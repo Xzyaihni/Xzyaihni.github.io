@@ -1,5 +1,5 @@
 const canvas = document.getElementById("display_canvas");
-const gl = canvas.getContext("webgl2");
+const gl = canvas.getContext("webgl");
 
 let pos = [-1.0, 0.0];
 let zoom = 3.0;
@@ -60,8 +60,7 @@ function canvas_dependent()
         return;
     }
 
-    const dpr = window.devicePixelRatio;
-    gl.uniform2f(program_info.uniform_locations.canvas_dimensions, canvas.width * dpr, canvas.height * dpr);
+    gl.uniform2f(program_info.uniform_locations.canvas_dimensions, canvas.width, canvas.height);
 }
 
 function array_add(a, b)
@@ -227,7 +226,8 @@ function bind_uniforms()
         return null;
     }
 
-    gl.uniform2fv(program_info.uniform_locations.pos, pos);
+    const corner_pos = array_sub(pos, [zoom * 0.5, zoom * 0.5]);
+    gl.uniform2fv(program_info.uniform_locations.pos, corner_pos);
     gl.uniform1f(program_info.uniform_locations.zoom, zoom);
 }
 

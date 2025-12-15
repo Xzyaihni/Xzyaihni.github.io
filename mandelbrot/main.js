@@ -1,20 +1,14 @@
-const v_shader = `#version 300 es
-
-in vec4 a_vertex_position;
+const v_shader = `attribute vec4 a_vertex_position;
 
 void main()
 {
     gl_Position = a_vertex_position;
 }`;
-const f_shader = `#version 300 es
-
-#ifdef GL_FRAGMENT_PRECISION_HIGH
+const f_shader = `#ifdef GL_FRAGMENT_PRECISION_HIGH
     precision highp float;
 #else
     precision mediump float;
 #endif
-
-out vec4 frag_color;
 
 uniform vec2 canvas_dimensions;
 
@@ -39,8 +33,8 @@ float mandelbrot(vec2 pixel)
             return float(i) / float(ITERATIONS);
         }
 
-        z_real += (pixel.x - 0.5) * zoom + pos.x;
-        z_imag += (pixel.y - 0.5) * zoom + pos.y;
+        z_real += pixel.x * zoom + pos.x;
+        z_imag += pixel.y * zoom + pos.y;
     }
 
     return 1.0;
@@ -87,10 +81,10 @@ void main()
         vec3(-0.4985314, 0.0415560, 1.0572252)
     ) * xyz / 255.0);
 
-    frag_color = vec4(color, 1.0);
+    gl_FragColor = vec4(color, 1.0);
 }`;
 const canvas = document.getElementById("display_canvas");
-const gl = canvas.getContext("webgl2");
+const gl = canvas.getContext("webgl");
 
 let pos = [-1.0, 0.0];
 let zoom = 3.0;
@@ -151,8 +145,7 @@ function canvas_dependent()
         return;
     }
 
-    const dpr = window.devicePixelRatio;
-    gl.uniform2f(program_info.uniform_locations.canvas_dimensions, canvas.width * dpr, canvas.height * dpr);
+    gl.uniform2f(program_info.uniform_locations.canvas_dimensions, canvas.width, canvas.height);
 }
 
 function array_add(a, b)
@@ -318,7 +311,8 @@ function bind_uniforms()
         return null;
     }
 
-    gl.uniform2fv(program_info.uniform_locations.pos, pos);
+    const corner_pos = array_sub(pos, [zoom * 0.5, zoom * 0.5]);
+    gl.uniform2fv(program_info.uniform_locations.pos, corner_pos);
     gl.uniform1f(program_info.uniform_locations.zoom, zoom);
 }
 

@@ -1,6 +1,4 @@
-#version 300 es
-
-in vec4 a_vertex_position;
+attribute vec4 a_vertex_position;
 
 void main()
 {
