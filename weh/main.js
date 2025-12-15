@@ -8,7 +8,11 @@ const offline_button = document.getElementById("offline_button");
 
 ctx.imageSmoothingEnabled = false;
 
+let touch_info = null;
+
 let previous_frame_time = 0.0;
+
+const lowest_fps = 10.0;
 
 const animation_limit = 100;
 
@@ -40,6 +44,10 @@ const levels = {
     pink_bubble: null
 };
 
+let enable_offline_later = false;
+let offline_enabled = false;
+let offline_completed = false;
+
 let waiting_sprite_textures = 0;
 let waiting_textures = 0;
 
@@ -49,6 +57,7 @@ let current_transition = null;
 let leave_transition = blink_time_up;
 
 let level_initialized = false;
+let level_loading = false;
 let level_loaded = false;
 
 let current_level = "snow";
@@ -87,6 +96,11 @@ offline_button.addEventListener("click", enable_offline);
 if (window.navigator.maxTouchPoints > 1)
 {
     document.getElementById("controls_text").innerHTML += " (or touch the game)";
+
+    canvas.addEventListener("touchstart", on_touch_start);
+    canvas.addEventListener("touchend", on_touch_end);
+    canvas.addEventListener("touchcancel", on_touch_end);
+    canvas.addEventListener("touchmove", on_touch_move);
 }
 
 load_textures({
@@ -99,8 +113,6 @@ load_textures({
     player_walk_left: ["player_walk_left0.png", "player_walk_left1.png"],
     player_walk_right: ["player_walk_right0.png", "player_walk_right1.png"]
 });
-
-load_current_level();
 
 update_frame(0.0);
 
@@ -228,8 +240,13 @@ function load_textures(textures)
     state.loader();
 }
 
-function parse_level(text)
+function parse_level(text, after_done)
 {
+    if (waiting_textures !== 0)
+    {
+        throw new Error("tried to load multiple levels at once, this wasnt supposed to happen");
+    }
+
     const lines = text.split('\n');
 
     const size_text = lines[0];
@@ -242,6 +259,8 @@ function parse_level(text)
         if (waiting_textures === 0)
         {
             level_loaded = true;
+
+            after_done();
         }
     };
 
@@ -266,7 +285,14 @@ function parse_level(text)
             {
                 animated_tiles[name].forEach((animated_name, animated_index) => {
                     load_texture_image_with(animated_name, (animated_texture) => {
-                        tiles_textures[this_index][animated_index + 1] = animated_texture;
+                        const second_index = animated_index + 1;
+
+                        if (tiles_textures[this_index][second_index])
+                        {
+                            throw new Error("texture conflict: " + name + " " + animated_name);
+                        }
+
+                        tiles_textures[this_index][second_index] = animated_texture;
 
                         after_load();
                     });
@@ -291,25 +317,33 @@ function parse_level(text)
     };
 }
 
-function load_level_inner(level)
+function check_loaded()
+{
+    for (const level in levels)
+    {
+        if (levels[level] === null)
+        {
+            return;
+        }
+    }
+
+    offline_completed = true;
+    offline_button.innerHTML = "no internet needed now!";
+}
+
+function load_level_inner(level, after_load)
 {
     if (levels[level] !== null)
     {
+        after_load();
+
         return;
     }
 
     get_resource(level + ".save", "text", (text) => {
-        levels[level] = parse_level(text);
+        levels[level] = parse_level(text, after_load);
 
-        for (const level in levels)
-        {
-            if (levels[level] === null)
-            {
-                return;
-            }
-        }
-
-        offline_button.innerHTML = "no internet needed now!";
+        check_loaded();
     });
 }
 
@@ -320,17 +354,50 @@ function load_current_level()
         return;
     }
 
+    level_loading = true;
     level_loaded = false;
 
-    load_level_inner(current_level);
+    load_level_inner(current_level, () => {});
+}
+
+function load_left(left)
+{
+    if (left.length === 0)
+    {
+        return;
+    }
+
+    const level = left.pop();
+
+    load_level_inner(level, () => {
+        load_left(left);
+    });
 }
 
 function enable_offline()
 {
+    if (offline_enabled)
+    {
+        return;
+    }
+
+    if (levels[current_level] === null || !level_loaded)
+    {
+        enable_offline_later = true;
+        return;
+    }
+
+    enable_offline_later = false;
+
+    offline_enabled = true;
+
+    let left = [];
     for (const level in levels)
     {
-        load_level_inner(level);
+        left.push(level);
     }
+
+    load_left(left);
 }
 
 function update_explored()
@@ -340,6 +407,11 @@ function update_explored()
 
     for (const level in levels)
     {
+        if (offline_completed && levels[level] === null)
+        {
+            throw new Error("offline is supposed to load every level, but some are still missing");
+        }
+
         if (levels[level] !== null && levels[level].explored)
         {
             explored += 1;
@@ -420,7 +492,48 @@ function on_key_up(e)
     get_key_changer(e)(false);
 }
 
-function movement_directions(dt)
+function touch_position(touch)
+{
+    const rect = canvas.getBoundingClientRect();
+
+    return [
+        (touch.clientX - rect.x) / rect.width,
+        (touch.clientY - rect.y) / rect.height
+    ];
+}
+
+function init_touch_info(position)
+{
+    touch_info = {
+        start: position,
+        current: position
+    };
+}
+
+function on_touch_start(e)
+{
+    init_touch_info(touch_position(e.touches[0]));
+}
+
+function on_touch_end(e)
+{
+    touch_info = null;
+}
+
+function on_touch_move(e)
+{
+    const position = touch_position(e.touches[0]);
+
+    if (touch_info === null)
+    {
+        init_touch_info(position);
+    } else
+    {
+        touch_info.current = position;
+    }
+}
+
+function movement_directions()
 {
     let moved_horizontal = false;
     let moved_vertical = false;
@@ -431,50 +544,75 @@ function movement_directions(dt)
     {
         moved_horizontal = true;
         velocity[0] -= 1.0;
-        entities[player].texture = textures.player_walk_left;
     }
 
     if (keys_pressed.right)
     {
         moved_horizontal = true;
         velocity[0] += 1.0;
-        entities[player].texture = textures.player_walk_right;
     }
 
     if (keys_pressed.up)
     {
         moved_vertical = true;
         velocity[1] -= 1.0;
-        entities[player].texture = textures.player_walk_up;
     }
 
     if (keys_pressed.down)
     {
         moved_vertical = true;
         velocity[1] += 1.0;
-        entities[player].texture = textures.player_walk_down;
     }
-
-    velocity = velocity.map((x) => x * player_speed * dt);
 
     if (moved_horizontal && moved_vertical)
     {
         velocity = velocity.map((x) => x / Math.sqrt(2.0));
     }
 
+    return velocity;
+}
+
+function handle_movement(direction, dt)
+{
+    const velocity = direction.map((x) => x * player_speed * dt);
+
     entities[player].position = array_add(entities[player].position, velocity);
 
-    const moved = moved_vertical || moved_horizontal;
+    const is_still = (Math.abs(velocity[0]) + Math.abs(velocity[1])) === 0.0;
 
-    if (!moved)
+    const is_horizontal = Math.abs(velocity[0]) > Math.abs(velocity[1]);
+    const is_vertical = !is_horizontal;
+
+    if (is_still)
     {
         entities[player].texture = textures.player_stand;
+    } else if (is_horizontal)
+    {
+        if (velocity[0] < 0.0)
+        {
+            entities[player].texture = textures.player_walk_left;
+        } else
+        {
+            entities[player].texture = textures.player_walk_right;
+        }
+    } else if (is_vertical)
+    {
+        if (velocity[1] < 0.0)
+        {
+            entities[player].texture = textures.player_walk_up;
+        } else
+        {
+            entities[player].texture = textures.player_walk_down;
+        }
     }
 }
 
 function handle_movement_inputs(dt)
 {
-    movement_directions(dt);
+    if (touch_info === null)
+    {
+        handle_movement(movement_directions(), dt);
+    }
 }
 
 function handle_inputs(dt)
@@ -581,9 +719,70 @@ function entity_touching(a, b)
         && touching_axis(a.size.height, b.size.height, a.position[1], b.position[1]);
 }
 
+function fully_ready()
+{
+    return levels[current_level] !== null && level_loaded && sprite_textures_loaded;
+}
+
+function handle_touch_movement(dt)
+{
+    if (touch_info === null)
+    {
+        return;
+    }
+
+    const circle_at = (size, pos) => {
+        ctx.beginPath();
+
+        ctx.ellipse(
+            pos[0] * canvas.width,
+            pos[1] * canvas.height,
+            size[0] * canvas.width,
+            size[1] * canvas.height,
+            0.0,
+            0.0,
+            Math.PI * 2.0
+        );
+
+        ctx.fill();
+    };
+
+    const outer_size = 0.15;
+    const inner_size = outer_size * 0.3;
+
+    ctx.fillStyle = "rgba(200, 200, 200, 0.5)";
+
+    circle_at([outer_size, outer_size], touch_info.start);
+
+    ctx.fillStyle = "rgba(200, 200, 200, 0.8)";
+
+    const difference = array_sub(touch_info.current, touch_info.start);
+
+    const distance = Math.sqrt(difference[0] * difference[0] + difference[1] * difference[1]);
+
+    if (distance === 0.0)
+    {
+        circle_at([inner_size, inner_size], touch_info.current);
+    } else
+    {
+        const direction = array_div(difference, distance);
+
+        const n_distance = Math.min(outer_size, distance);
+
+        const inner_pos = array_add(touch_info.start, array_mul(direction, n_distance));
+
+        circle_at([inner_size, inner_size], inner_pos);
+
+        if (fully_ready())
+        {
+            handle_movement(direction, dt);
+        }
+    }
+}
+
 function draw_blink()
 {
-    ctx.fillStyle = "hsv(50%, 10%, 10%)";
+    ctx.fillStyle = "hsl(180, 10%, 10%)";
 
     if (!level_initialized)
     {
@@ -628,10 +827,11 @@ function draw_frame()
     entities.forEach((entity) => {
         if (field_exists(entity.texture) && field_exists(entity.position))
         {
+            const texture = entity.texture[normal_animation.frame % entity.texture.length];
+
             const draw_at = (x, y) => {
                 const screen_position = array_sub([x, y], camera_position);
 
-                const texture = entity.texture[normal_animation.frame % entity.texture.length];
                 const position = entity_position(texture, screen_position);
 
                 ctx.drawImage(
@@ -837,18 +1037,28 @@ function advance_animation(animation, dt)
 
 function update_frame(current_time)
 {
-    const dt = Math.min(current_time - previous_frame_time, (1000.0 / 30.0)) * 0.001;
+    const dt = Math.min(current_time - previous_frame_time, (1000.0 / lowest_fps)) * 0.001;
     previous_frame_time = current_time;
 
     advance_animation(normal_animation, dt);
     advance_animation(tile_animation, dt);
 
-    if (levels[current_level] !== null && level_loaded && sprite_textures_loaded)
+    if (levels[current_level] === null && !level_loading && waiting_textures === 0)
+    {
+        load_current_level();
+    }
+
+    if (fully_ready())
     {
         if (!levels[current_level])
         {
             console.log("level doesnt exist: " + current_level);
             return;
+        }
+
+        if (enable_offline_later)
+        {
+            enable_offline();
         }
 
         if (!level_initialized)
@@ -874,6 +1084,8 @@ function update_frame(current_time)
     }
 
     draw_blink();
+
+    handle_touch_movement(dt);
 
     if (current_transition !== null)
     {
